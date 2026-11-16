@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: email-blaster
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: ACCESS_CODE
+        generateValue: true
+      - key: TEST_MODE
+        value: "true"
+      - key: BREVO_API_KEY
+        sync: false
+      - key: COMPANY_NAME
+        value: Northwind
+      - key: COMPANY_ADDRESS
+        value: 41 Kingsway, London WC2B 6EX, United Kingdom
