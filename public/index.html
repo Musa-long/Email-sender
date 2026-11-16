@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Email Blaster</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d10;color:#e7eaee;font:14px/1.5 system-ui,-apple-system,sans-serif}
+  header{padding:14px 22px;border-bottom:1px solid #1e2228;font-weight:600;display:flex;align-items:center;gap:10px}
+  .tag{font-size:11px;padding:3px 8px;border-radius:99px;background:#2a1f12;color:#fbbf24;border:1px solid #4a3a1c}
+  main{display:grid;grid-template-columns:1fr 1fr;min-height:calc(100vh - 52px)}
+  .form{padding:22px;max-width:600px}
+  .prev{border-left:1px solid #1e2228;background:#0e1115;padding:18px}
+  .prev iframe{width:100%;height:calc(100vh - 90px);border:0;border-radius:8px;background:#fff}
+  label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#8b949e;margin:15px 0 6px}
+  input,textarea{width:100%;background:#12151a;border:1px solid #242a32;color:#e7eaee;border-radius:6px;padding:10px;font:inherit}
+  input[type=color]{padding:3px;height:38px}
+  textarea{min-height:90px;resize:vertical}
+  .drop{border:2px dashed #2a313a;border-radius:8px;padding:20px;text-align:center;color:#8b949e;cursor:pointer}
+  .drop:hover{border-color:#3b82f6;color:#c9d3de}
+  .drop img{max-width:100%;max-height:130px;border-radius:6px;margin-top:8px}
+  button{background:#2563eb;border:0;color:#fff;padding:12px 20px;border-radius:6px;font-weight:700;cursor:pointer}
+  button.ghost{background:#161a20;border:1px solid #262c35;color:#c3c9d1}
+  .bar{height:8px;background:#161a20;border-radius:99px;overflow:hidden;margin:14px 0 8px}
+  .bar>i{display:block;height:100%;width:0;background:#2563eb;transition:width .3s}
+  .meta{font-size:12px;color:#8b949e}
+  .err{font-size:11px;color:#fca5a5;font-family:ui-monospace,monospace;max-height:100px;overflow:auto;white-space:pre-wrap}
+  .hide{display:none!important}
+  @media(max-width:900px){main{grid-template-columns:1fr}.prev{border-left:0;border-top:1px solid #1e2228}}
+</style>
+</head>
+<body>
+<header>Email Blaster <span class="tag" id="mode">TEST</span></header>
+<main>
+  <div class="form">
+    <div id="gate">
+      <label>Access code</label>
+      <input id="code" type="password" placeholder="ACCESS_CODE from Render">
+      <div style="margin-top:14px"><button id="unlock">Unlock</button></div>
+    </div>
+
+    <div id="app" class="hide">
+      <label>From name / address</label>
+      <div style="display:flex;gap:8px">
+        <input id="fromName" value="Northwind" placeholder="Northwind">
+        <input id="fromEmail" placeholder="offers@yourdomain.com">
+      </div>
+
+      <label>Subject</label>
+      <input id="subject" placeholder="Autumn sale ends Friday" oninput="paint()">
+
+      <label>Headline</label>
+      <input id="headline" placeholder="30% off everything" oninput="paint()">
+
+      <label>Message (blank line = new paragraph, {{first_name}} works)</label>
+      <textarea id="body" placeholder="Hi {{first_name}}, our biggest sale of the year is live…" oninput="paint()"></textarea>
+
+      <label>Your link</label>
+      <input id="link" placeholder="https://yoursite.com/offer" oninput="paint()">
+
+      <label>Button text</label>
+      <input id="buttonText" value="Shop the sale" oninput="paint()">
+
+      <label>Button colour</label>
+      <input id="accent" type="color" value="#2563eb" oninput="paint()">
+
+      <label>Your design (top banner image)</label>
+      <div class="drop" id="drop">Click to upload
+        <input type="file" id="file" accept="image/*" class="hide">
+        <div id="thumb"></div>
+      </div>
+
+      <label>Recipients — one per line</label>
+      <textarea id="rcpt" placeholder="alex@acme.com&#10;sam@other.com"></textarea>
+
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <button id="send">Send</button>
+        <button class="ghost" id="cancel">Stop</button>
+      </div>
+      <div class="bar"><i id="prog"></i></div>
+      <div class="meta" id="stat">Idle</div>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <div class="prev"><iframe id="prev"></iframe></div>
+</main>
+
+<script>
+let code = localStorage.getItem('mail_code') || '';
+let mediaPath = '';
+let job = null;
+let timer = null;
+const $ = (id) => document.getElementById(id);
+const hdr = () => ({ 'content-type': 'application/json', 'x-access-code': code });
+
+function paint() {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const r = await fetch('/api/preview', {
+      method: 'POST', headers: hdr(),
+      body: JSON.stringify({
+        subject: $('subject').value, headline: $('headline').value, body: $('body').value,
+        link: $('link').value, buttonText: $('buttonText').value, accent: $('accent').value,
+        mediaPath, company: $('fromName').value,
+      }),
+    });
+    if (r.ok) $('prev').srcdoc = (await r.json()).html;
+  }, 350);
+}
+
+$('unlock').onclick = async () => {
+  code = $('code').value.trim();
+  const r = await fetch('/api/preview', { method: 'POST', headers: hdr(), body: '{}' });
+  if (!r.ok) return alert('Wrong access code');
+  localStorage.setItem('mail_code', code);
+  $('gate').classList.add('hide');
+  $('app').classList.remove('hide');
+  paint();
+};
+
+$('drop').onclick = () => $('file').click();
+$('file').onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const dataUrl = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(f); });
+  const r = await fetch('/api/upload', { method: 'POST', headers: hdr(), body: JSON.stringify({ dataUrl }) });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error);
+  mediaPath = j.path;
+  $('thumb').innerHTML = '<img src="' + mediaPath + '">';
+  paint();
+};
+
+$('send').onclick = async () => {
+  const recipients = $('rcpt').value.split(/[\n,;]/).map((s) => s.trim()).filter(Boolean);
+  if (!recipients.length) return alert('Add recipients');
+  if (!confirm('Send to ' + recipients.length + ' addresses?')) return;
+  $('err').textContent = '';
+  const r = await fetch('/api/send', {
+    method: 'POST', headers: hdr(),
+    body: JSON.stringify({
+      recipients, subject: $('subject').value, headline: $('headline').value, body: $('body').value,
+      link: $('link').value, buttonText: $('buttonText').value, accent: $('accent').value,
+      mediaPath, fromName: $('fromName').value, fromEmail: $('fromEmail').value,
+    }),
+  });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error);
+  job = j.jobId;
+  const es = new EventSource('/api/jobs/' + job + '/stream?code=' + encodeURIComponent(code));
+  es.onmessage = (e) => {
+    const s = JSON.parse(e.data);
+    $('prog').style.width = Math.round(((s.sent + s.failed) / s.total) * 100) + '%';
+    $('stat').textContent = s.status + ' — ' + s.sent + ' sent, ' + s.failed + ' failed of ' + s.total;
+    $('err').textContent = s.errors.map((x) => x.to + ': ' + x.error).join('\n');
+    if (s.status !== 'running') { es.close(); job = null; }
+  };
+};
+
+$('cancel').onclick = () => job && fetch('/api/jobs/' + job + '/cancel', { method: 'POST', headers: hdr() });
+
+if (code) $('unlock').click();
+</script>
+</body>
+</html>
